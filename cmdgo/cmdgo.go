@@ -15,6 +15,7 @@ import (
 var (
 	user32                = windows.NewLazySystemDLL("user32.dll")
 	procSetWindowsHookExW = user32.NewProc("SetWindowsHookExW")
+	procCallNextHookEx    = user32.NewProc("CallNextHookEx")
 	procLowLevelKeyboard  = user32.NewProc("LowLevelKeyboardProc")
 	procSendInput         = user32.NewProc("SendInput")
 	procGetMessage        = user32.NewProc("GetMessage")
@@ -111,6 +112,17 @@ func SetWindowsHookExW(idHook int, lpfn HOOKPROC, hMod HINSTANCE, dwThreadId DWO
 		uintptr(dwThreadId),
 	)
 	return HHOOK(ret)
+}
+
+// https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-callnexthookex
+func CallNextHookEx(hhk HHOOK, nCode int, wParam WPARAM, lParam LPARAM) LRESULT {
+	ret, _, _ := procCallNextHookEx.Call(
+		uintptr(hhk),
+		uintptr(nCode),
+		uintptr(wParam),
+		uintptr(lParam),
+	)
+	return LRESULT(ret)
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/winmsg/lowlevelkeyboardproc
