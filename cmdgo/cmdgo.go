@@ -24,14 +24,18 @@ var (
 )
 
 // - https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowshookexw
+// - https://docs.microsoft.com/en-us/windows/win32/winmsg/wm-app
 // - https://docs.microsoft.com/en-us/windows/win32/inputdev/wm-keydown
 // - https://docs.microsoft.com/en-us/windows/win32/inputdev/wm-keyup
 // - https://docs.microsoft.com/en-us/windows/win32/inputdev/wm-syskeydown
 // - https://docs.microsoft.com/en-us/windows/win32/inputdev/wm-syskeyup
 // - https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
+// - https://docs.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-input
 const (
 	WH_KEYBOARD_LL = 13
 
+	WM_APP        = 0x8000
+	WM_APP_PRIV   = (WM_APP + 0x1337)
 	WM_KEYDOWN    = 0x0100
 	WM_KEYUP      = 0x0101
 	WM_SYSKEYDOWN = 0x0104
@@ -39,6 +43,8 @@ const (
 
 	VK_CAPITAL  = 0x14
 	VK_LCONTROL = 0xA3
+
+	INPUT_KEYBOARD = 1
 )
 
 // https://docs.microsoft.com/en-us/windows/win32/winprog/windows-data-types
@@ -170,17 +176,54 @@ func DispatchMessage(lpMsg *MSG) LRESULT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func (ret LRESULT) keyboardHook(nCode int, wParam WPARAM, lParam LPARAM) {
+var myGlobalHook HHOOK
+
+func keyboardHook(nCode int, wParam WPARAM, lParam LPARAM) LRESULT {
 	kbdstruct := (*KBDLLHOOKSTRUCT)(unsafe.Pointer(lParam))
 	keyCode := byte(kbdstruct.vkCode)
 
-	if keyCode == VK_CAPITAL {
-		// TODO: SendInput VK_LCONTROL
+	if keyCode == VK_CAPITAL && kbdstruct.dwExtraInfo != WM_APP_PRIV {
+		newKi := KEYBDINPUT{
+			wVk:         VK_LCONTROL,
+			wScan:       0,
+			time:        0,
+			dwExtraInfo: WM_APP_PRIV,
+		}
+		switch wParam {
+		case WM_KEYDOWN:
+			fallthrough
+		case WM_KEYUP:
+			fallthrough
+		case WM_SYSKEYDOWN:
+			fallthrough
+		case WM_SYSKEYUP:
+			newKi.dwFlags = (DWORD)(wParam)
+		default:
+			newKi.dwFlags = 0
+		}
+
+		newInput := INPUT{
+			dwType: INPUT_KEYBOARD,
+			ki:     newKi,
+		}
+
+		inputs := [1]INPUT{newInput}
+		return LRESULT(SendInput(
+			1,
+			(*INPUT)(unsafe.Pointer(&inputs)),
+			(int)(unsafe.Sizeof(INPUT{}))))
 	}
+	return CallNextHookEx(myGlobalHook, nCode, wParam, lParam)
 }
 
 func Start() {
-	// TODO: Setup keyboardHook, then run MSG loop
+	// Setup keyboardHook
+	myGlobalHook = SetWindowsHookExW(WH_KEYBOARD_LL, keyboardHook, 0, 0)
+
+	// Run Loop
+	var msg MSG
+	for GetMessage(&msg, 0, 0, 0) != 0 {
+	}
 }
 
 func main() {
