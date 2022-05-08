@@ -13,8 +13,11 @@ cmdgo.go: deps
 deps:
 	go get golang.org/x/sys/windows
 
+fmt:
+	go fmt
+
 clean:
 	-rm -f cmdgo.exe
 	-chmod -R +w $(GOMODCACHE); rm -rf $(GOMODCACHE)/{cache,golang.org}
 
-.PHONY: deps clean
+.PHONY: deps fmt clean
